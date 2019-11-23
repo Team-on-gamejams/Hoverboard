@@ -47,38 +47,34 @@ public class Hoverboard : MonoBehaviour {
 				DisableRagdoll();
 		}
 
+		float hor = Input.GetAxisRaw("Horizontal");
+		currTurn = hor != 0 ? hor * rotationStr : 0;
+
 		if (isTunnOff)
 			return;
 
 		float vert = Input.GetAxisRaw("Vertical");
 		currForce = vert != 0 ? vert * moveAcl : 0;
-
-		float hor = Input.GetAxisRaw("Horizontal");
-		currTurn = hor != 0 ? hor * rotationStr : 0;
 	}
 
 	void FixedUpdate() {
+		if (currTurn != 0)
+			rb.AddRelativeTorque(Vector3.up * currTurn);
+
 		if (isTunnOff)
 			return;
 		byte hittedRaycast = 0;
 
 		for (byte i = 0; i < raycastPos.Length; ++i) {
-			isRaycastHit[i] = Physics.Raycast(raycastPos[i].position, -transform.up, out raycastHit[i], maxRaycastLen, LayerMask.GetMask("Environment"));
+			isRaycastHit[i] = Physics.Raycast(raycastPos[i].position, Vector3.down, out raycastHit[i], maxRaycastLen, LayerMask.GetMask("Environment"));
 
-			if (!isRaycastHit[i]) {
-				if (Physics.Raycast(raycastPos[i].position, Vector3.down, out raycastHit[i], maxRaycastLen, LayerMask.GetMask("Environment")))
-					rb.AddForceAtPosition(Vector3.up * flyForce * (1.0f - (raycastHit[i].distance / flyingHeight)), raycastPos[i].position);
-			}
-			else {
-				if (isRaycastHit[i]) {
-					++hittedRaycast;
+			if (isRaycastHit[i]) {
+				++hittedRaycast;
 
-					rb.AddForceAtPosition(transform.up * flyForce * (1.0f - (raycastHit[i].distance / flyingHeight)), raycastPos[i].position);
-				}
+				rb.AddForceAtPosition(Vector3.up * flyForce * (1.0f - (raycastHit[i].distance / flyingHeight)), raycastPos[i].position);
 			}
 
 			ProcessSmog(i);
-
 		}
 
 		if(hittedRaycast != 0) {
@@ -87,9 +83,6 @@ public class Hoverboard : MonoBehaviour {
 			if (currForce != 0)
 				rb.AddForce(transform.right * currForce);
 		}
-
-		if (currTurn != 0)
-			rb.AddRelativeTorque(Vector3.up * currTurn);
 	}
 
 	void ProcessSmog(int id) {
