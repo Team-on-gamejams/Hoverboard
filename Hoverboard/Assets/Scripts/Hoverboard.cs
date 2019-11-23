@@ -28,7 +28,7 @@ public class Hoverboard : MonoBehaviour {
 
 	RaycastHit[] raycastHit;
 	bool[] isRaycastHit;
-	bool pressW, pressS, pressA, pressD;
+	bool pressW;
 
 	Vector3 velocity = Vector3.zero;
 
@@ -50,10 +50,14 @@ public class Hoverboard : MonoBehaviour {
 		if (isTunnOff)
 			return;
 
-		pressA = Input.GetKey(KeyCode.A);
-		pressD = Input.GetKey(KeyCode.D);
+		if (Input.GetKey(KeyCode.A)) {
+			rotationY -= rotationSpeed * Time.deltaTime;
+		}
+		else if (Input.GetKey(KeyCode.D)) {
+			rotationY += rotationSpeed * Time.deltaTime;
+		}
+
 		pressW = Input.GetKey(KeyCode.W);
-		pressS = Input.GetKey(KeyCode.S);
 	}
 
 	void FixedUpdate() {
@@ -77,37 +81,27 @@ public class Hoverboard : MonoBehaviour {
 
 		Vector3 euler = Quaternion.LookRotation(Vector3.forward, avgNormal).eulerAngles;
 		euler.y = rotationY;
-		//transform.rotation = Quaternion.Euler(euler);
-		rb.MoveRotation(Quaternion.Euler(euler));
+		transform.rotation = Quaternion.Euler(euler);
 
-		if (pressW) 
-			rb.AddRelativeForce(moveForce * Time.fixedDeltaTime * Vector3.right);
-		if (pressS) 
-			rb.AddRelativeForce(-moveForce * Time.fixedDeltaTime * Vector3.right);
-		if (pressA)
-			rb.AddTorque(rotationSpeed * Time.fixedDeltaTime * Vector3.up);
-		if (pressD)
-			rb.AddTorque(-rotationSpeed * Time.fixedDeltaTime * Vector3.up);
+		if (pressW) {
+			velocity += moveForce * Time.fixedDeltaTime * Vector3.right;
+			if (velocity.x > moveForceMax)
+				velocity.x = moveForceMax;
+		}
 
-		//if (avgLen < flyingHeightMax) {
-		//	velocity += flyForce * Time.fixedDeltaTime * Vector3.up;
-		//}
+		if (avgLen < flyingHeightMax) {
+			velocity += flyForce * Time.fixedDeltaTime * Vector3.up;
+		}
 
-		//if (velocity.x != 0) {
-		//	if (velocity.x < 0) {
-		//		velocity += moveDrag * Time.fixedDeltaTime * Vector3.right;
-		//		if (velocity.x > 0)
-		//			velocity.x = 0;
-		//	}
-		//	else {
-		//		velocity -= moveDrag * Time.fixedDeltaTime * Vector3.right;
-		//		if (velocity.x < 0)
-		//			velocity.x = 0;
-		//	}
-		//}
+		transform.Translate(velocity);
 
-		//velocity -= gravityForce * Time.fixedDeltaTime * Vector3.up;
+		if (velocity.x != 0) {
+			velocity -= moveDrag * Time.fixedDeltaTime * Vector3.right;
+			if (velocity.x <= 0)
+				velocity.x = 0;
+		}
 
+		velocity -= gravityForce * Time.fixedDeltaTime * Vector3.up;
 	}
 
 	void ProcessSmog(int id) {
@@ -125,14 +119,14 @@ public class Hoverboard : MonoBehaviour {
 	}
 
 	void EnableRagdoll() {
-		//rb.isKinematic = false;
-		//rb.detectCollisions = true;
+		rb.isKinematic = false;
+		rb.detectCollisions = true;
 		animatorHoverboard.enabled = false;
 	}
 
 	void DisableRagdoll() {
-		//rb.isKinematic = true;
-		//rb.detectCollisions = false;
+		rb.isKinematic = true;
+		rb.detectCollisions = false;
 		animatorHoverboard.enabled = true;
 	}
 }
