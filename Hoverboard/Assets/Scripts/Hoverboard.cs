@@ -5,26 +5,25 @@ using UnityEngine;
 public class Hoverboard : MonoBehaviour {
 	[Header("Flying")]
 	[SerializeField] float maxRaycastLen = 0.3f;
-	[SerializeField] float flyingHeightMax = 0.2f;
+	[SerializeField] float flyingHeight = 0.2f;
 	[SerializeField] float flyForce = 11.0f;
-	[SerializeField] float gravityForce = 9.8f;
 
 	[Header("Rotation")]
-	[SerializeField] float rotationSpeed = 1;
+	[SerializeField] float rotationStr = 1;
 
 	[Header("Moving")]
-	[SerializeField] float moveForce = 1;
-	[SerializeField] float moveForceMax = 1;
-	[SerializeField] float moveDrag = 1;
+	[SerializeField] float moveAcl = 1;
 
 	[Header("Refs")]
 	[SerializeField] Rigidbody rb;
 	[SerializeField] ParticleSystem[] smogs;
 	[SerializeField] Transform[] raycastPos;
 	[SerializeField] Animator animatorHoverboard;
+	[SerializeField] Vector3 centreOfMass;
 
 	bool isTunnOff = true;
-	float rotationY = 0;
+	float currForce;
+	float currTurn;
 
 	RaycastHit[] raycastHit;
 	bool[] isRaycastHit;
@@ -35,6 +34,7 @@ public class Hoverboard : MonoBehaviour {
 	void Awake() {
 		raycastHit = new RaycastHit[raycastPos.Length];
 		isRaycastHit = new bool[raycastPos.Length];
+		rb.centerOfMass = centreOfMass;
 	}
 
 	void Update() {
@@ -50,58 +50,46 @@ public class Hoverboard : MonoBehaviour {
 		if (isTunnOff)
 			return;
 
-		if (Input.GetKey(KeyCode.A)) {
-			rotationY -= rotationSpeed * Time.deltaTime;
-		}
-		else if (Input.GetKey(KeyCode.D)) {
-			rotationY += rotationSpeed * Time.deltaTime;
-		}
+		float vert = Input.GetAxisRaw("Vertical");
+		currForce = vert != 0 ? vert * moveAcl : 0;
 
-		pressW = Input.GetKey(KeyCode.W);
+		float hor = Input.GetAxisRaw("Horizontal");
+		currTurn = hor != 0 ? hor * rotationStr : 0;
 	}
 
 	void FixedUpdate() {
-		Vector3 avgNormal = Vector3.zero;
-		float avgLen = 0;
+		if (isTunnOff)
+			return;
 		byte hittedRaycast = 0;
 
 		for (byte i = 0; i < raycastPos.Length; ++i) {
-			isRaycastHit[i] = Physics.Raycast(raycastPos[i].position, Vector3.down, out raycastHit[i], maxRaycastLen, LayerMask.GetMask("Environment"));
+			isRaycastHit[i] = Physics.Raycast(raycastPos[i].position, -transform.up, out raycastHit[i], maxRaycastLen, LayerMask.GetMask("Environment"));
+
+			if (!isRaycastHit[i]) {
+				if (Physics.Raycast(raycastPos[i].position, Vector3.down, out raycastHit[i], maxRaycastLen, LayerMask.GetMask("Environment")))
+					rb.AddForceAtPosition(Vector3.up * flyForce * (1.0f - (raycastHit[i].distance / flyingHeight)), raycastPos[i].position);
+			}
+			else {
+				if (isRaycastHit[i]) {
+					++hittedRaycast;
+
+					rb.AddForceAtPosition(transform.up * flyForce * (1.0f - (raycastHit[i].distance / flyingHeight)), raycastPos[i].position);
+				}
+			}
 
 			ProcessSmog(i);
 
-			if (isRaycastHit[i]) {
-				avgNormal += raycastHit[i].normal;
-				avgLen += raycastHit[i].distance;
-				++hittedRaycast;
-			}
-		}
-		avgNormal /= hittedRaycast;
-		avgLen /= hittedRaycast;
-
-		Vector3 euler = Quaternion.LookRotation(Vector3.forward, avgNormal).eulerAngles;
-		euler.y = rotationY;
-		transform.rotation = Quaternion.Euler(euler);
-
-		if (pressW) {
-			velocity += moveForce * Time.fixedDeltaTime * Vector3.right;
-			if (velocity.x > moveForceMax)
-				velocity.x = moveForceMax;
 		}
 
-		if (avgLen < flyingHeightMax) {
-			velocity += flyForce * Time.fixedDeltaTime * Vector3.up;
+		if(hittedRaycast != 0) {
+			//rb.AddForce(Vector3.up * flyForce * (1.0f - (avgLen / flyingHeight)));
+
+			if (currForce != 0)
+				rb.AddForce(transform.right * currForce);
 		}
 
-		transform.Translate(velocity);
-
-		if (velocity.x != 0) {
-			velocity -= moveDrag * Time.fixedDeltaTime * Vector3.right;
-			if (velocity.x <= 0)
-				velocity.x = 0;
-		}
-
-		velocity -= gravityForce * Time.fixedDeltaTime * Vector3.up;
+		if (currTurn != 0)
+			rb.AddRelativeTorque(Vector3.up * currTurn);
 	}
 
 	void ProcessSmog(int id) {
@@ -111,7 +99,7 @@ public class Hoverboard : MonoBehaviour {
 		}
 		else {
 			foreach (var smog in smogs) {
-				smog.transform.position = new Vector3(smog.transform.position.x, raycastHit[id].point.y, smog.transform.position.z);
+				smog.transform.position = raycastHit[id].point;
 				if(smog.isStopped)
 					smog.Play();
 			}
@@ -119,14 +107,10 @@ public class Hoverboard : MonoBehaviour {
 	}
 
 	void EnableRagdoll() {
-		rb.isKinematic = false;
-		rb.detectCollisions = true;
 		animatorHoverboard.enabled = false;
 	}
 
 	void DisableRagdoll() {
-		rb.isKinematic = true;
-		rb.detectCollisions = false;
 		animatorHoverboard.enabled = true;
 	}
 }
